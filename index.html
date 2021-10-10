@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div id="result"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+
+    <script>
+        const plotChart = (points) => {
+            tfvis.render.scatterplot(
+                { name: "Square feet vs price" },
+                { values: points },
+                {
+                    xLabel: "Square feet",
+                    yLabel: "Price"
+                }
+            )
+        }
+
+        const normalise = (tensor) => {
+            const min = tensor.min();
+            const max = tensor.max();
+            const normalisedTensor = tensor.sub(min).div(max.sub(min));
+
+            return {
+                tensor: normalisedTensor,
+                min,
+                max
+            }
+        }
+
+        const denormalise = (tensor, min, max) => {
+            const denormalisedTensor = tensor.mul(max.sub(min)).add(min);
+
+            return denormalisedTensor;
+        }
+
+        async function visualize(){
+            const houseSales = tf.data.csv("http://127.0.0.1:5500/kc_house_data.csv");
+            const results = await houseSales.toArray();
+            const points = results.map(el => {
+                return {
+                    x: el.sqft_living,
+                    y: el.price
+                }
+            })
+
+            if(points.length % 2 !== 0) {
+                points.pop()
+            }
+
+            tf.util.shuffle(points)
+
+            const featureValues = points.map(el => el.x)
+            const featureValuesTensor = tf.tensor2d(featureValues, [featureValues.length, 1])
+
+            const labelValues = points.map(el => el.y)
+            const labelValuesTensor = tf.tensor2d(labelValues, [labelValues.length, 1])
+
+            const normalisedFeatureValues = normalise(featureValuesTensor)
+            const normalisedLabelValues = normalise(labelValuesTensor);
+            const normalisedFeatureValuesTensor = normalisedFeatureValues.tensor;
+            const normalisedLabelValuesTensor = normalisedLabelValues.tensor;
+
+            const denormalisedFeatureValuesTensor = denormalise(normalisedFeatureValuesTensor, normalisedFeatureValues.min, normalisedFeatureValues.max);
+            const denormalisedLabelValuesTensor = denormalise(normalisedLabelValuesTensor, normalisedLabelValues.min, normalisedLabelValues.max);
+
+            const [trainingFeatureTensor, testingFeatureTensor] = tf.split(normalisedFeatureValuesTensor, 2);
+            const [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabelValuesTensor, 2);
+
+            trainingFeatureTensor.print();
+            testingFeatureTensor.print();
+            trainingLabelTensor.print();
+            testingLabelTensor.print();
+
+            plotChart(points)
+
+        }
+
+        visualize()
+    </script>
+</body>
+</html>
