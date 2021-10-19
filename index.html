@@ -8,11 +8,13 @@
 </head>
 <body>
     <div id="result"></div>
+    hello
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.0.0/dist/tf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
 
     <script>
+        
         const plotChart = (points) => {
             tfvis.render.scatterplot(
                 { name: "Square feet vs price" },
@@ -75,12 +77,57 @@
             const [trainingFeatureTensor, testingFeatureTensor] = tf.split(normalisedFeatureValuesTensor, 2);
             const [trainingLabelTensor, testingLabelTensor] = tf.split(normalisedLabelValuesTensor, 2);
 
-            trainingFeatureTensor.print();
-            testingFeatureTensor.print();
-            trainingLabelTensor.print();
-            testingLabelTensor.print();
+            function createModel(){
+               const model = tf.sequential();
+
+                model.add(tf.layers.dense({
+                   units: 1,
+                   useBias: true,
+                   activation: "linear",
+                   inputDim: 1
+                }))
+
+               return model;
+            }
 
             plotChart(points)
+
+            const model = createModel();
+            model.summary()
+            tfvis.show.modelSummary({name: "model summary"}, model)
+            const layer = model.getLayer(undefined, 0);
+            tfvis.show.layer({name: "layer"}, layer)
+
+            const optimizer = tf.train.sgd(0.1)
+
+            model.compile({
+                loss: "meanSquaredError",
+                optimizer
+            })
+
+            async function trainModel(model, trainingFeatureTensor, trainingLabelTensor){
+                const {onEpochEnd, onBatchEnd} = tfvis.show.fitCallbacks(
+                    {name: "training performance"},
+                    ["loss"]
+                )
+                return model.fit(trainingFeatureTensor, trainingLabelTensor, {
+                    batchSize: 32,
+                    epochs: 20,
+                    validationSplit: 0.2,
+                    callbacks: {
+                        onEpochEnd,
+                       // onBatchEnd
+                    }
+                })
+            }
+
+            const result = await trainModel(model, trainingFeatureTensor, trainingLabelTensor);
+            const trainingLoss = result.history.loss.pop()
+            console.log(`training set loss: ${trainingLoss}`)
+
+            const testingLoss = model.evaluate(testingFeatureTensor, testingLabelTensor);
+            const testingLossValue = await testingLoss.dataSync();
+            console.log(testingLossValue)
 
         }
 
